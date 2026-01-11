@@ -1,10 +1,9 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const API_KEY = process.env.API_KEY || '';
-
+// Always use process.env.API_KEY directly when initializing the GoogleGenAI client instance.
 export const getGeminiChat = () => {
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   return ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
@@ -14,7 +13,7 @@ export const getGeminiChat = () => {
 };
 
 export const analyzeSupplyData = async (data: any) => {
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Analyze this supply chain data and provide key insights on profit growth and material risks: ${JSON.stringify(data)}`,

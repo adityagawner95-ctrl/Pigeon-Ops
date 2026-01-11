@@ -26,3 +26,17 @@ export interface RouteUpdate {
   condition: 'storm' | 'clear' | 'delay';
   alternativeSuggested: boolean;
 }
+
+export interface DetailedShipment {
+  id: string;
+  vessel: string;
+  origin: string;
+  destination: string;
+  eta: string;
+  status: 'Transit' | 'Docking' | 'Loading' | 'Delayed';
+  weather: {
+    temp: string;
+    condition: string;
+    windSpeed: string;
+  };
+}
