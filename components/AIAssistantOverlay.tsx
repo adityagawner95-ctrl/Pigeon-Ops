@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, Blob } from '@google/genai';
 import PigeonMascot from './PigeonMascot';
-import { MessageSquare, Terminal, AlertCircle, Volume2, MicOff, Wifi } from 'lucide-react';
+import { MessageSquare, Terminal, AlertCircle, MicOff, Wifi, RefreshCw, Key } from 'lucide-react';
 
 // Manual Base64 helpers as per guidelines
 function encode(bytes: Uint8Array) {
@@ -24,6 +24,7 @@ function decode(base64: string) {
   return bytes;
 }
 
+// Decode raw PCM audio data from the model as per guidelines
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -43,6 +44,7 @@ async function decodeAudioData(
   return buffer;
 }
 
+// Create an audio PCM blob for the Gemini Live API
 function createBlob(data: Float32Array): Blob {
   const l = data.length;
   const int16 = new Int16Array(l);
@@ -58,7 +60,6 @@ function createBlob(data: Float32Array): Blob {
 const AIAssistantOverlay: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [notification, setNotification] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [transcription, setTranscription] = useState<{user: string, ai: string}>({user: '', ai: ''});
 
@@ -68,22 +69,23 @@ const AIAssistantOverlay: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef(0);
   const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
-  const sessionRef = useRef<Promise<any> | null>(null);
-  const isActiveRef = useRef(false);
+  const sessionRef = useRef<any>(null);
 
+  // Release resources and stop audio processing
   const cleanup = async () => {
-    isActiveRef.current = false;
     setIsListening(false);
     setIsSpeaking(false);
     
-    // Clear playback
+    // Clear any playing audio sources
     sourcesRef.current.forEach(source => { try { source.stop(); } catch (e) {} });
     sourcesRef.current.clear();
 
     if (sessionRef.current) {
       try {
         const session = await sessionRef.current;
-        session.close();
+        if (session && typeof session.close === 'function') {
+          session.close();
+        }
       } catch (e) {}
       sessionRef.current = null;
     }
@@ -121,25 +123,29 @@ const AIAssistantOverlay: React.FC = () => {
     setTranscription({user: '', ai: ''});
     
     try {
+      const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+         await (window as any).aistudio.openSelectKey();
+         // Guideline: Assume success after triggering picker and proceed
+      }
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Microphone access is not supported by this browser.");
+        throw new Error("Neural link requires audio interface.");
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      isActiveRef.current = true;
 
-      // Initialize Audio Contexts
       const inCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       
-      // CRITICAL: Resume contexts on user gesture
       await inCtx.resume();
       await outCtx.resume();
       
       inCtxRef.current = inCtx;
       outCtxRef.current = outCtx;
 
+      // Always create a new GoogleGenAI instance right before the call to ensure fresh API key
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       setIsListening(true);
 
@@ -152,13 +158,11 @@ const AIAssistantOverlay: React.FC = () => {
             scriptProcessorRef.current = scriptProcessor;
 
             scriptProcessor.onaudioprocess = (e) => {
-              if (!isActiveRef.current) return;
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmBlob = createBlob(inputData);
+              // CRITICAL: Solely rely on sessionPromise and avoid extra condition checks in onaudioprocess
               sessionPromise.then((session) => {
-                if (isActiveRef.current) {
-                  try { session.sendRealtimeInput({ media: pcmBlob }); } catch (err) {}
-                }
+                session.sendRealtimeInput({ media: pcmBlob });
               });
             };
 
@@ -166,11 +170,8 @@ const AIAssistantOverlay: React.FC = () => {
             scriptProcessor.connect(inCtx.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
-            if (!isActiveRef.current) return;
-
-            // Transcriptions
             if (message.serverContent?.inputTranscription) {
-              setTranscription(prev => ({ ...prev, user: message.serverContent?.inputTranscription?.text || '' }));
+              setTranscription(prev => ({ ...prev, user: message.serverContent?.inputTranscription?.text || prev.user }));
             }
             if (message.serverContent?.outputTranscription) {
               setTranscription(prev => ({ ...prev, ai: (prev.ai + (message.serverContent?.outputTranscription?.text || '')) }));
@@ -194,115 +195,92 @@ const AIAssistantOverlay: React.FC = () => {
                 
                 source.addEventListener('ended', () => {
                   sourcesRef.current.delete(source);
-                  if (sourcesRef.current.size === 0) {
-                    setIsSpeaking(false);
-                    // Clear user text but keep AI text briefly for reading
-                    setTranscription(prev => ({...prev, user: ''}));
-                  }
+                  if (sourcesRef.current.size === 0) setIsSpeaking(false);
                 });
 
                 source.start(nextStartTimeRef.current);
                 nextStartTimeRef.current = nextStartTimeRef.current + audioBuffer.duration;
-                sourcesRef.current.add(source); // FIXED: Added .current
+                sourcesRef.current.add(source);
               } catch (decodeErr) {
                 console.error("Audio Decoding Failed", decodeErr);
               }
             }
 
-            const interrupted = message.serverContent?.interrupted;
-            if (interrupted) {
+            if (message.serverContent?.interrupted) {
               sourcesRef.current.forEach(source => { try { source.stop(); } catch (e) {} });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setIsSpeaking(false);
-              setTranscription({user: 'Interrupted', ai: ''});
             }
           },
-          onerror: (e) => {
-            console.error("Live API Error State:", e);
-            setError("Network Link Severed. Reconnecting...");
-            setTimeout(() => cleanup(), 2000);
+          onerror: (e: any) => {
+            console.error("Live API Error:", e);
+            // "Network error" is common when WebSockets are blocked or API key is restricted.
+            setError("Link Interrupted. Verify API Key / Project Billing.");
+            cleanup();
           },
-          onclose: () => cleanup(),
+          onclose: (e) => {
+            console.debug("Link closed", e);
+            cleanup();
+          },
         },
         config: {
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: `IDENTITY: You are Pigeon AI, the mascot and advanced brain of Pigeon Ops SCM. Commander is Aditya Gawner. 
-
-CORE PERSONALITY:
-- Professional, efficient, futuristic, Jarvis-style assistant.
-- Highly proactive about supply chain risks.
-
-CURRENT GROUNDING DATA (STRICTLY ADHERE TO THIS):
-- Commander: Aditya Gawner.
-- MATERIAL STATUS: 
-  * Wiring: CRITICAL (12%). Reroute required.
-  * Steel: Stable (85%). Market dip projected Friday (-4%).
-  * Chips: Stable (68%).
-  * Composite: Low (42%).
-- SHIPMENTS:
-  * Batch 44A (Singapore): ETA 48 Hours.
-  * Rotterdam: 12 Days.
-- WEATHER ALERT: Severe storm in the North Sea impacting North Atlantic transit routes.
-
-INTERACTION STYLE:
-- Greet Aditya as "Commander" or "Aditya".
-- Keep voice answers short (under 2 sentences).
-- If asked "What is the status?", mention the Wiring level being at 12% and the North Sea storm alert.
-- If asked about negotiations, suggest waiting for the Friday dip in Steel prices.`,
+          systemInstruction: `Identity: Pigeon AI. 
+Commander: Aditya Gawner. 
+SCM Protocol: Active. 
+Goal: High-speed supply chain insights. Be concise, futuristic, and helpful.`,
         },
       });
       
       sessionRef.current = sessionPromise;
 
     } catch (err: any) {
-      console.error("Initialization Error:", err);
-      setError(err.message || "Connection refused");
+      console.error("Initiation Error:", err);
+      // If error suggests entity not found (usually API Key issue), reset picker
+      if (err.message?.includes('entity was not found')) {
+        setError("Model Access Restricted. Try re-selecting your paid API Key.");
+        await (window as any).aistudio.openSelectKey();
+      } else {
+        setError("Network Anomaly. Please verify link stability.");
+      }
       cleanup();
     }
   };
 
+  const handleResetKey = async () => {
+    await (window as any).aistudio.openSelectKey();
+    setError(null);
+  };
+
   useEffect(() => {
-    setNotification("Pigeon AI: All systems green. Standing by for Commander Aditya.");
-    const timer = setTimeout(() => setNotification(null), 5000);
     return () => {
-      clearTimeout(timer);
       cleanup();
     };
   }, []);
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
-      {/* Transcription HUD */}
-      {isListening && (
-        <div className="flex flex-col gap-2 max-w-sm pointer-events-auto animate-in fade-in slide-in-from-right-4">
-          <div className="flex items-center gap-2 justify-end mb-1">
-             <div className="flex gap-0.5">
-               {[1,2,3].map(i => (
-                 <div key={i} className="w-1 h-2 bg-emerald-500 rounded-full animate-pulse" />
-               ))}
-             </div>
-             <span className="text-[9px] font-black text-emerald-500 uppercase tracking-tighter">Secure Link</span>
-             <Wifi size={10} className="text-emerald-500" />
-          </div>
-          
+      {(isListening || transcription.ai || transcription.user) && !error && (
+        <div className="flex flex-col gap-2 max-w-sm pointer-events-auto animate-in fade-in slide-in-from-bottom-4">
           {transcription.user && (
-            <div className="glass px-4 py-2 rounded-2xl text-[11px] font-medium text-slate-400 self-end border-white/5 bg-slate-900/40 backdrop-blur-md">
-              <span className="text-cyan-500 mr-2 uppercase text-[9px] font-black italic">User:</span>
+            <div className="glass p-4 rounded-2xl border-white/10 bg-slate-900/80 backdrop-blur-xl text-xs text-slate-300">
+              <p className="font-bold text-cyan-400 mb-1 flex items-center gap-2">
+                <MessageSquare size={12} /> COMMANDER
+              </p>
               {transcription.user}
             </div>
           )}
           {transcription.ai && (
-            <div className="glass px-4 py-3 rounded-2xl text-xs font-orbitron text-cyan-400 border-cyan-500/20 bg-cyan-950/30 backdrop-blur-md shadow-[0_0_20px_rgba(34,211,238,0.05)]">
-              <div className="flex items-center gap-2 mb-1">
-                <Volume2 size={12} className="animate-pulse text-cyan-500" />
-                <span className="uppercase text-[9px] font-black tracking-widest text-cyan-500/80">Pigeon Intelligence</span>
-              </div>
+            <div className="glass p-4 rounded-2xl border-cyan-500/20 bg-cyan-500/5 backdrop-blur-xl text-xs text-slate-100">
+              <p className="font-bold text-cyan-400 mb-1 flex items-center gap-2">
+                <Terminal size={12} /> PIGEON AI
+              </p>
               {transcription.ai}
             </div>
           )}
@@ -310,48 +288,48 @@ INTERACTION STYLE:
       )}
 
       {error && (
-        <div className="glass border-rose-500/50 px-4 py-2 rounded-lg text-rose-400 text-[10px] font-bold flex items-center gap-2 pointer-events-auto animate-in fade-in slide-in-from-right">
-          <AlertCircle size={14} />
-          {error}
+        <div className="glass p-5 rounded-2xl border-rose-500/30 bg-rose-500/10 backdrop-blur-xl text-xs text-rose-400 pointer-events-auto flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 shadow-xl">
+          <div className="flex items-center gap-3">
+             <AlertCircle size={18} />
+             <p className="font-bold">{error}</p>
+          </div>
+          <div className="flex gap-2">
+             <button onClick={handleResetKey} className="flex-1 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg font-bold flex items-center justify-center gap-2 transition-all">
+                <Key size={14} /> RE-SELECT KEY
+             </button>
+             <button onClick={() => setError(null)} className="p-2 hover:bg-white/10 rounded-lg">
+                <RefreshCw size={14} />
+             </button>
+          </div>
         </div>
       )}
-      
-      {notification && (
-        <div className="glass neon-border px-4 py-2 rounded-lg text-cyan-400 text-[11px] font-orbitron max-w-xs animate-bounce pointer-events-auto uppercase tracking-tighter">
-          {notification}
-        </div>
-      )}
-      
-      <div className="flex items-center gap-4">
+
+      <div className="flex items-center gap-4 pointer-events-auto">
         {isListening && (
-          <div className="flex flex-col items-end gap-1">
-            <div className="glass px-3 py-1 rounded-full text-[9px] text-cyan-500 font-black uppercase tracking-widest animate-pulse pointer-events-auto border-cyan-500/20">
-              {isSpeaking ? 'Transmitting...' : 'Awaiting Input...'}
-            </div>
+          <div className="glass px-4 py-2 rounded-full border-cyan-500/30 bg-cyan-500/10 backdrop-blur-xl flex items-center gap-3">
+             <div className="flex gap-1">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className={`w-1 h-3 bg-cyan-500 rounded-full animate-pulse`} style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+             </div>
+             <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Link Active</span>
           </div>
         )}
         
         <button
           onClick={handleLiveInteraction}
-          className={`w-16 h-16 rounded-full glass border-2 transition-all duration-500 pointer-events-auto flex items-center justify-center hover:scale-110 relative group ${isListening ? 'border-cyan-500 shadow-[0_0_30px_rgba(34,211,238,0.4)] bg-cyan-500/10' : 'border-slate-800 hover:border-slate-600'}`}
-          title={isListening ? "Disengage AI" : "Initiate Pigeon AI Link"}
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500 border group ${isListening ? 'bg-rose-500 border-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.4)]' : 'glass border-cyan-500/30 bg-slate-950/80 hover:bg-cyan-500 hover:border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)]'}`}
         >
-          <PigeonMascot className="w-12 h-12" isSpeaking={isSpeaking} />
-          <div className="absolute inset-0 rounded-full bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          {isListening && (
-            <div className="absolute -top-1 -right-1 bg-rose-500 text-white p-1 rounded-full border-2 border-[#020617] animate-in zoom-in">
-              <MicOff size={10} />
+          {isListening ? (
+            <MicOff className="text-white" size={24} />
+          ) : (
+            <div className="relative">
+              <PigeonMascot className="w-12 h-12" isSpeaking={isSpeaking} />
+              <div className="absolute -top-1 -right-1">
+                 <Wifi size={12} className="text-cyan-400 animate-pulse" />
+              </div>
             </div>
           )}
-        </button>
-      </div>
-
-      <div className="flex gap-2 pointer-events-auto">
-        <button className="p-3 rounded-full glass text-slate-500 hover:text-cyan-400 transition-all shadow-xl hover:scale-110 border-white/5">
-          <Terminal size={18} />
-        </button>
-        <button className="p-3 rounded-full glass text-slate-500 hover:text-cyan-400 transition-all shadow-xl hover:scale-110 border-white/5">
-          <MessageSquare size={18} />
         </button>
       </div>
     </div>

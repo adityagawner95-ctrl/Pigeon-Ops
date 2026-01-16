@@ -6,10 +6,10 @@ import {
 import { Box, TrendingUp, Clock, Activity, Zap } from 'lucide-react';
 
 const rawMaterialData = [
-  { name: 'Steel', level: 85, fill: '#06b6d4' },
-  { name: 'Composite', level: 42, fill: '#8b5cf6' },
-  { name: 'Wiring', level: 12, fill: '#ef4444' },
-  { name: 'Chips', level: 68, fill: '#10b981' },
+  { name: 'Steel', level: 85, fill: '#06b6d4', moderateFill: '#fbbf24' },
+  { name: 'Composite', level: 42, fill: '#8b5cf6', moderateFill: '#a78bfa' },
+  { name: 'Wiring', level: 12, fill: '#ef4444', moderateFill: '#f87171' },
+  { name: 'Chips', level: 68, fill: '#10b981', moderateFill: '#34d399' },
 ];
 
 const profitData = [
@@ -34,17 +34,17 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
           <h1 className="text-4xl font-orbitron font-black tracking-tighter transition-colors">OPERATIONS DASHBOARD</h1>
-          <p className="text-slate-400">System State: <span className="text-cyan-500 font-bold uppercase">Optimized</span></p>
+          <p className="text-slate-400">System State: <span className="text-cyan-500 moderate:text-amber-500 font-bold uppercase">Optimized</span></p>
         </div>
         <div className="flex gap-4">
           <div className="glass px-6 py-3 rounded-xl flex items-center gap-3">
-            <div className="p-2 bg-cyan-500/10 rounded-lg"><Activity className="text-cyan-500" size={20} /></div>
+            <div className="p-2 bg-cyan-500/10 moderate:bg-amber-500/10 rounded-lg"><Activity className="text-cyan-500 moderate:text-amber-500" size={20} /></div>
             <div>
               <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Sync Integrity</p>
               <p className="text-xl font-orbitron font-bold">99.8%</p>
             </div>
           </div>
-          <div className="glass px-6 py-3 rounded-xl flex items-center gap-3 border-cyan-500/30">
+          <div className="glass px-6 py-3 rounded-xl flex items-center gap-3 border-cyan-500/30 moderate:border-amber-500/30">
             <div className="p-2 bg-emerald-500/10 rounded-lg"><TrendingUp className="text-emerald-500" size={20} /></div>
             <div>
               <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Monthly Profit</p>
@@ -62,20 +62,20 @@ const Dashboard: React.FC = () => {
             <Box size={100} />
           </div>
           <h2 className="text-xl font-orbitron mb-6 flex items-center gap-2">
-            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse" />
+            <div className="w-2 h-2 bg-cyan-500 moderate:bg-amber-500 rounded-full animate-pulse" />
             RAW MATERIAL LEVELS
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {rawMaterialData.map((item) => (
-              <div key={item.name} className="flex flex-col items-center justify-center p-4 glass rounded-xl border-white/5 hover:border-cyan-500/30 transition-colors">
+              <div key={item.name} className="flex flex-col items-center justify-center p-4 glass rounded-xl border-white/5 hover:border-cyan-500/30 moderate:hover:border-amber-500/30 transition-colors">
                 <div className="relative w-20 h-20 mb-3">
                   <svg className="w-20 h-20 transform -rotate-90">
-                    <circle cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-200 dark:text-slate-800" />
+                    <circle cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-200 dark:text-slate-800 moderate:text-indigo-900/50" />
                     <circle 
                       cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" 
                       strokeDasharray={219.9} strokeDashoffset={219.9 - (item.level / 100) * 219.9}
                       className="transition-all duration-1000"
-                      style={{ color: item.fill }}
+                      style={{ color: document.body.classList.contains('moderate') ? item.moderateFill : item.fill }}
                     />
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-sm font-bold font-orbitron">
@@ -94,25 +94,25 @@ const Dashboard: React.FC = () => {
         {/* Notifications */}
         <div className="glass p-6 rounded-2xl">
           <h2 className="text-xl font-orbitron mb-6 flex items-center gap-2">
-            <Zap className="text-yellow-500" size={20} />
+            <Zap className="text-yellow-500 moderate:text-amber-500" size={20} />
             RECENT INTEL
           </h2>
           <div className="space-y-4">
             {notifications.map((n) => (
-              <div key={n.id} className="p-4 rounded-xl border transition-colors cursor-pointer group bg-white/5 dark:bg-white/5 border-slate-200 dark:border-white/5 hover:bg-white/10 dark:hover:bg-white/10">
+              <div key={n.id} className="p-4 rounded-xl border transition-colors cursor-pointer group bg-white/5 border-slate-200 dark:border-white/5 moderate:border-indigo-400/10 hover:bg-white/10">
                 <div className="flex justify-between items-start mb-1">
-                   <h3 className={`text-sm font-bold ${n.type === 'alert' ? 'text-rose-500' : n.type === 'success' ? 'text-emerald-500' : 'text-cyan-500'}`}>
+                   <h3 className={`text-sm font-bold ${n.type === 'alert' ? 'text-rose-500' : n.type === 'success' ? 'text-emerald-500' : 'text-cyan-500 moderate:text-amber-400'}`}>
                      {n.title}
                    </h3>
                    <Clock size={12} className="text-slate-400" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                <p className="text-xs text-slate-500 leading-relaxed group-hover:text-slate-300">
                   {n.msg}
                 </p>
               </div>
             ))}
           </div>
-          <button className="w-full mt-6 py-3 glass rounded-xl text-xs font-bold uppercase tracking-widest text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 transition-all">
+          <button className="w-full mt-6 py-3 glass rounded-xl text-xs font-bold uppercase tracking-widest text-cyan-600 dark:text-cyan-400 moderate:text-amber-500 hover:bg-cyan-500/10 moderate:hover:bg-amber-500/10 transition-all">
             View All Archives
           </button>
         </div>
@@ -132,7 +132,7 @@ const Dashboard: React.FC = () => {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-800" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-800 moderate:text-indigo-900/40" vertical={false} />
                 <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v/1000}k`} />
                 <Tooltip 
@@ -149,7 +149,7 @@ const Dashboard: React.FC = () => {
         <div className="glass p-6 rounded-2xl flex flex-col justify-between">
            <div>
             <h2 className="text-xl font-orbitron mb-6 flex items-center gap-2">
-              <Clock className="text-purple-500" size={20} />
+              <Clock className="text-purple-500 moderate:text-amber-400" size={20} />
               UPCOMING SHIPMENTS
             </h2>
             <div className="space-y-4">
@@ -159,9 +159,9 @@ const Dashboard: React.FC = () => {
                   <p className="text-[10px] text-slate-500">Origin: Port of Busan</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-orbitron text-cyan-600 dark:text-cyan-400">ETA 48H</p>
-                  <div className="w-16 h-1 bg-slate-200 dark:bg-slate-800 rounded-full mt-1 overflow-hidden">
-                    <div className="w-[80%] h-full bg-cyan-500" />
+                  <p className="text-xs font-orbitron text-cyan-600 dark:text-cyan-400 moderate:text-amber-400">ETA 48H</p>
+                  <div className="w-16 h-1 bg-slate-200 dark:bg-slate-800 moderate:bg-indigo-900 rounded-full mt-1 overflow-hidden">
+                    <div className="w-[80%] h-full bg-cyan-500 moderate:bg-amber-500" />
                   </div>
                 </div>
               </div>
@@ -172,7 +172,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-orbitron text-slate-500">ETA 12D</p>
-                  <div className="w-16 h-1 bg-slate-200 dark:bg-slate-800 rounded-full mt-1 overflow-hidden">
+                  <div className="w-16 h-1 bg-slate-200 dark:bg-slate-800 moderate:bg-indigo-900 rounded-full mt-1 overflow-hidden">
                     <div className="w-[10%] h-full bg-slate-600" />
                   </div>
                 </div>
@@ -180,9 +180,9 @@ const Dashboard: React.FC = () => {
             </div>
            </div>
            
-           <div className="p-4 bg-cyan-500/10 rounded-xl border border-cyan-500/20 mt-4">
-              <p className="text-[10px] text-cyan-600 dark:text-cyan-400 font-bold uppercase tracking-wider mb-2">Pigeon AI Prediction</p>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic">
+           <div className="p-4 bg-cyan-500/10 moderate:bg-amber-500/10 rounded-xl border border-cyan-500/20 moderate:border-amber-500/20 mt-4">
+              <p className="text-[10px] text-cyan-600 moderate:text-amber-500 font-bold uppercase tracking-wider mb-2">Pigeon AI Prediction</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 moderate:text-indigo-100 leading-relaxed italic">
                 "Recommended restocking Steel by Friday to leverage a projected 4% market dip. Negotiator is on standby."
               </p>
            </div>

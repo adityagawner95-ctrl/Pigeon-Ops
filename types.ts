@@ -1,9 +1,11 @@
 
 export enum View {
+  LOGIN = 'LOGIN',
   DASHBOARD = 'DASHBOARD',
   GLOBAL_ROUTES = 'GLOBAL_ROUTES',
   DEAL_MAKER = 'DEAL_MAKER',
-  DOC_INSIGHT = 'DOC_INSIGHT'
+  DOC_INSIGHT = 'DOC_INSIGHT',
+  CONFIRMATION = 'CONFIRMATION'
 }
 
 export interface Notification {
@@ -20,13 +22,6 @@ export interface RawMaterial {
   upcomingShipment: string;
 }
 
-export interface RouteUpdate {
-  origin: string;
-  destination: string;
-  condition: 'storm' | 'clear' | 'delay';
-  alternativeSuggested: boolean;
-}
-
 export interface DetailedShipment {
   id: string;
   vessel: string;
@@ -34,9 +29,6 @@ export interface DetailedShipment {
   destination: string;
   eta: string;
   status: 'Transit' | 'Docking' | 'Loading' | 'Delayed';
-  weather: {
-    temp: string;
-    condition: string;
-    windSpeed: string;
-  };
+  materials: { name: string; qty: string }[];
+  verificationLevel: 'Low' | 'Medium' | 'High';
 }

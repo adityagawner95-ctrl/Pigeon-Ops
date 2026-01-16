@@ -13,6 +13,7 @@
         --text-color: #f8fafc;
         --glass-bg: rgba(15, 23, 42, 0.6);
         --glass-border: rgba(255, 255, 255, 0.1);
+        --accent-glow: rgba(34, 211, 238, 0.5);
       }
 
       .light {
@@ -20,6 +21,15 @@
         --text-color: #0f172a;
         --glass-bg: rgba(255, 255, 255, 0.7);
         --glass-border: rgba(15, 23, 42, 0.1);
+        --accent-glow: rgba(34, 211, 238, 0.2);
+      }
+
+      .moderate {
+        --bg-color: #1e1b4b; /* Deep Indigo */
+        --text-color: #e0e7ff; /* Soft Lavender */
+        --glass-bg: rgba(49, 46, 129, 0.4);
+        --glass-border: rgba(199, 210, 254, 0.2);
+        --accent-glow: rgba(245, 158, 11, 0.4); /* Amber Glow */
       }
 
       body {
@@ -40,8 +50,13 @@
       }
 
       .neon-border {
-        box-shadow: 0 0 10px rgba(34, 211, 238, 0.5), inset 0 0 5px rgba(34, 211, 238, 0.2);
+        box-shadow: 0 0 10px var(--accent-glow), inset 0 0 5px rgba(34, 211, 238, 0.1);
         border-color: rgba(34, 211, 238, 0.4);
+      }
+
+      .moderate .neon-border {
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.3), inset 0 0 5px rgba(245, 158, 11, 0.1);
+        border-color: rgba(245, 158, 11, 0.3);
       }
 
       .pigeon-float {
@@ -58,8 +73,8 @@
       }
 
       @keyframes glowPulse {
-        0%, 100% { filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.5)); }
-        50% { filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.8)); }
+        0%, 100% { filter: drop-shadow(0 0 5px var(--accent-glow)); }
+        50% { filter: drop-shadow(0 0 20px var(--accent-glow)); }
       }
 
       ::-webkit-scrollbar { width: 6px; }
